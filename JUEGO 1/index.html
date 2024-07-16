@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Tormenta de rayos</title>
+<!-- Incluye la librería p5.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+<style>
+ body, html {
+   margin: 0;
+   padding: 0;
+   height: 100%;
+   overflow: hidden;
+   font-family: 'Poppins', sans-serif; /* Aplica la fuente Poppins a todo el documento */
+ }
+
+ #canvas-container {
+   position: relative;
+   width: 100%;
+   height: 100%;
+ }
+
+ canvas {
+   position: absolute;
+   top: 0;
+   left: 0;
+ }
+
+ .game-over-screen {
+  font-family: 'Poppins', sans-serif;
+  display: none;
+   position: absolute;
+   top: 0;
+   left: 0;
+   width: 100%;
+   height: 100%;
+   background-color: rgba(0, 0, 0, 0.7);
+   color: #fff;
+   font-size: 36px;
+   text-align: center;
+   padding-top: 200px;
+   box-sizing: border-box;
+ }
+
+ .game-over-screen button {
+   display: inline-block;
+   margin: 20px 2px 0; /* Añade margen arriba y 2px entre botones */
+   padding: 10px 20px;
+   font-size: 16px;
+   cursor: pointer;
+   text-decoration: none;
+   background-color: #fff;
+   color: #000;
+   border: none;
+   border-radius: 5px;
+   width: 200px; /* Ajusta el ancho del botón */
+   text-align: center; /* Centra el texto dentro del botón */
+ }
+
+ .game-over-screen a {
+   display: inline-block;
+   margin-top: 20px; /* Ajusta este valor según sea necesario */
+   text-decoration: none;
+ }
+
+</style>
+<!-- Importa la fuente Poppins desde Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="canvas-container"></div> <!-- Contenedor para el canvas -->
+
+<div class="game-over-screen" id="game-over-screen">
+  <div id="game-over-message">GAME OVER</div>
+  <div id="final-score">Final score: 0</div>
+  <button id="retry-button" onclick="restartGame()">Play again</button>
+  <a href="http://127.0.0.1:3000/index.html"><button>Home</button></a>
+</div>
+
+<!-- Elementos de audio -->
+<audio id="touch-cloud-sound" src="Sonido/02.wav"></audio>
+<audio id="game-over-sound" src="Sonido/03.wav"></audio>
+
+<script>
+ let playerX; // Posición en X del jugador
+ const playerY = window.innerHeight - 50; // Posición en Y del jugador
+ const playerWidth = 50; // Ancho del jugador
+ const playerHeight = 50; // Altura del jugador
+ let obstacles = []; // Array de obstáculos
+ const obstacleWidth = 50; // Ancho del obstáculo
+ const obstacleHeight = 50; // Altura del obstáculo
+ let obstacleSpeed = 3; // Velocidad inicial del obstáculo
+ let score = 0; // Puntuación
+ let gameOver = false; // Variable para controlar el estado del juego
+ let frameCounter = 0; // Contador de frames para aumentar la frecuencia de generación de obstáculos
+ let bgImage; // Imagen de fondo
+ let startTime; // Tiempo de inicio del juego
+ let gameTime = 60; // Duración total del juego en segundos
+ let countdown = gameTime; // Contador de tiempo restante
+
+ function preload() {
+   // Carga la imagen de fondo antes de que comience el juego
+   bgImage = loadImage('fondos/fondos pod-01.png');
+ }
+
+ function setup() {
+   let canvas = createCanvas(windowWidth, windowHeight);
+   canvas.parent('canvas-container');
+   playerX = width / 2 - playerWidth / 2; // Posición inicial en X del jugador
+   startTime = millis(); // Inicia el tiempo de juego
+ }
+
+ function draw() {
+   // Dibuja la imagen de fondo
+   background(bgImage);
+
+   // Dibuja al jugador como una nube personalizada
+   fill('white');
+   noStroke();
+   drawPlatform(playerX, playerY);
+
+   // Incrementa la velocidad y añade más obstáculos con el tiempo
+frameCounter++;
+if (frameCounter % 50 === 0) { // Ajusta este número para cambiar la frecuencia (menos es más)
+  let newObstacles = 2; // Ajusta la cantidad de nuevos obstáculos que se generan cada vez
+  for (let i = 0; i < newObstacles; i++) {
+    let x;
+    let tooClose;
+    let attempts = 0; // Contador de intentos para evitar el bucle infinito
+    do {
+      x = random(width - obstacleWidth);
+      tooClose = obstacles.some(obstacle => abs(obstacle.x - x) < obstacleWidth);
+      attempts++;
+      if (attempts > 10) { // Si se realizan más de 10 intentos, salir del bucle
+        tooClose = false;
+      }
+    } while (tooClose); // Repite hasta encontrar una posición no muy cercana a otros obstáculos
+    obstacles.push({x: x, y: 0});
+  }
+  obstacleSpeed += 0.05; // Incrementa la velocidad de los obstáculos más lentamente
+}
+
+   // Mueve y dibuja todos los obstáculos
+   for (let i = obstacles.length - 1; i >= 0; i--) {
+     fill('white');
+     noStroke();
+     let raySize = obstacleHeight + 20; // Ajusta el tamaño del rayo aquí
+     textSize(raySize);
+     textAlign(CENTER, CENTER);
+     text("⚡", obstacles[i].x + obstacleWidth / 2, obstacles[i].y + obstacleHeight / 2);
+
+     obstacles[i].y += obstacleSpeed;
+
+     // Comprueba si el obstáculo toca al jugador
+     if (detectCollision(playerX, playerY, playerWidth, playerHeight, obstacles[i].x, obstacles[i].y, obstacleWidth, obstacleHeight)) {
+       gameOver = true;
+       document.getElementById('game-over-sound').currentTime = 0;
+       document.getElementById('game-over-sound').play(); // Reproduce el sonido de game over
+       document.getElementById('final-score').innerText = 'Final score: ' + score; // Actualiza el puntaje en la pantalla de game over
+       document.getElementById('game-over-screen').style.display = 'block'; // Muestra la pantalla de game over
+     }
+
+     // Elimina los obstáculos que ya han pasado la pantalla y reproduce el sonido
+     if (obstacles[i].y > height) {
+       document.getElementById('touch-cloud-sound').currentTime = 0;
+       document.getElementById('touch-cloud-sound').play(); // Reproduce el sonido cuando la nube pasa
+       obstacles.splice(i, 1);
+       score++;
+     }
+   }
+
+   // Calcula el tiempo transcurrido
+   let elapsedTime = (millis() - startTime) / 1000;
+
+   // Calcula el tiempo restante
+   countdown = gameTime - floor(elapsedTime);
+
+   // Muestra el tiempo restante y la puntuación con la fuente Poppins
+   fill(255);
+   textSize(20);
+   textAlign(LEFT);
+   textFont('Poppins'); // Aplica la fuente Poppins
+   text("Score: " + score, 10, 30);
+   textAlign(RIGHT);
+   text("Time: " + nf(max(countdown, 0), 0, 1) + "s", width - 10, 30);
+
+   // Comprueba si el juego ha terminado
+   if (countdown <= 0 && !gameOver) {
+     document.getElementById('game-over-sound').currentTime = 0;
+     document.getElementById('game-over-sound').play(); // Reproduce el sonido de game over
+     document.getElementById('final-score').innerText = 'Final score: ' + score; // Actualiza el puntaje en la pantalla de game over
+     document.getElementById('game-over-message').innerText = 'YOU WON'; // Actualiza el mensaje en la pantalla de game over
+     document.getElementById('game-over-screen').style.display = 'block'; // Muestra la pantalla de game over
+     noLoop(); // Detiene el bucle draw
+   } else if (gameOver) {
+     noLoop(); // Detiene el bucle draw
+     document.getElementById('game-over-screen').style.display = 'block'; // Muestra la pantalla de game over
+   }
+ }
+
+ function drawPlatform(x, y) {
+   ellipse(x, y, obstacleWidth, obstacleHeight);
+   ellipse(x + 30, y - 10, obstacleWidth + 25, obstacleHeight + 30);
+   ellipse(x + 80, y - 30, obstacleWidth + 40, obstacleHeight + 25);
+   ellipse(x + 70, y - 10, obstacleWidth + 20, obstacleHeight + 30);
+   ellipse(x + 110, y - 10, obstacleWidth + 20, obstacleHeight + 30);
+   ellipse(x + 140, y - 10, obstacleWidth + 40, obstacleHeight + 20);
+   ellipse(x + 120, y - 35, obstacleWidth, obstacleHeight);
+   ellipse(x + 175, y - 10, obstacleWidth, obstacleHeight);
+ }
+
+ // Mueve al jugador hacia la izquierda o derecha según las teclas presionadas
+ function keyPressed() {
+   const moveSpeed = 100; // Velocidad de movimiento del jugador
+   if (keyCode === LEFT_ARROW && playerX > 0) {
+     playerX -= moveSpeed;
+   } else if (keyCode === RIGHT_ARROW && playerX + playerWidth < width) {
+     playerX += moveSpeed;
+   }
+ }
+
+ // Función para detectar colisiones entre dos rectángulos
+ function detectCollision(x1, y1, w1, h1, x2, y2, w2, h2) {
+   return x1 < x2 + w2 &&
+          x1 + w1 > x2 &&
+          y1 < y2 + h2 &&
+          y1 + h1 > y2;
+ }
+
+ function restartGame() {
+   gameOver = false;
+   score = 0;
+   obstacles = [];
+   obstacleSpeed = 3;
+   frameCounter = 0;
+   startTime = millis();
+   document.getElementById('game-over-screen').style.display = 'none';
+   loop(); // Reanuda el bucle draw
+ }
+</script>
+</body>
+</html>
